@@ -1,0 +1,807 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Perfil de Investidor — haus | necton</title>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#F9FAFB;}
+  input[type=range]{width:100%;cursor:pointer;accent-color:#6366F1;}
+  button{font-family:inherit;}
+  ::-webkit-scrollbar{width:6px;}
+  ::-webkit-scrollbar-track{background:#F1F5F9;}
+  ::-webkit-scrollbar-thumb{background:#CBD5E1;border-radius:3px;}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect } = React;
+
+const fmtBRL = v => new Intl.NumberFormat("pt-BR",{style:"currency",currency:"BRL"}).format(v);
+
+/* ── GLOSSÁRIO ── */
+const GLOSS = {
+  "Sharpe Ratio":"Mede o retorno extra por unidade de risco assumido. Acima de 1,0 é considerado bom.",
+  "Drawdown":"Queda máxima do portfólio do pico ao vale. Ex: -12% significa que a carteira perdeu 12% do valor máximo antes de se recuperar.",
+  "IPCA+":"Título que rende a inflação oficial (IPCA) mais uma taxa prefixada. Garante poder de compra real.",
+  "ETF":"Fundo negociado em bolsa que replica um índice (ex: S&P500). Diversificação global com baixo custo.",
+  "Pós-fixado":"Retorno acompanha uma taxa de referência (CDI ou Selic). Protege contra alta de juros.",
+  "Prefixado":"Taxa definida no momento da aplicação. Você sabe exatamente quanto vai receber.",
+  "FII":"Fundo de Investimento Imobiliário. Invista em imóveis recebendo aluguéis mensais isentos de IR.",
+  "Volatilidade":"Variação do preço de um ativo ao longo do tempo. Alta volatilidade = oscilações maiores.",
+  "Dolarização":"Parcela do portfólio exposta ao dólar. Protege contra desvalorização do real.",
+  "CDB":"Certificado de Depósito Bancário. Coberto pelo FGC até R$ 250 mil.",
+};
+
+const Tip = ({termo, children}) => {
+  const [show, setShow] = React.useState(false);
+  return (
+    <span style={{position:"relative",display:"inline"}}>
+      <span onMouseEnter={()=>setShow(true)} onMouseLeave={()=>setShow(false)} onClick={()=>setShow(!show)}
+        style={{borderBottom:"1px dashed #6366F1",color:"#6366F1",cursor:"help",fontWeight:600}}>
+        {children||termo}
+      </span>
+      {show&&<span style={{position:"absolute",bottom:"calc(100% + 6px)",left:"50%",transform:"translateX(-50%)",
+        background:"#1e1b4b",color:"white",fontSize:12,borderRadius:8,padding:"10px 12px",width:220,
+        zIndex:999,lineHeight:1.5,boxShadow:"0 4px 20px rgba(0,0,0,0.3)",pointerEvents:"none"}}>
+        <strong style={{display:"block",marginBottom:4,color:"#A5B4FC"}}>{termo}</strong>
+        {GLOSS[termo]}
+        <span style={{position:"absolute",bottom:-6,left:"50%",transform:"translateX(-50%)",width:0,height:0,
+          borderLeft:"6px solid transparent",borderRight:"6px solid transparent",borderTop:"6px solid #1e1b4b"}}/>
+      </span>}
+    </span>
+  );
+};
+
+/* ── PERGUNTAS ── */
+const PERGUNTAS = [
+  {id:1,cat:"Objetivo",ic:"🎯",q:"Qual é o seu principal objetivo financeiro?",ops:[
+    {t:"Preservar meu dinheiro e ter liquidez imediata",p:1},
+    {t:"Proteger meu patrimônio da inflação com baixa oscilação",p:2},
+    {t:"Crescer meu patrimônio de forma equilibrada ao longo do tempo",p:3},
+    {t:"Maximizar o retorno no longo prazo, aceitando oscilações",p:4},
+  ]},
+  {id:2,cat:"Horizonte",ic:"⏳",q:"Por quanto tempo pretende deixar seu dinheiro investido?",ops:[
+    {t:"Menos de 1 ano — preciso de liquidez rápida",p:1},
+    {t:"De 1 a 3 anos",p:2},{t:"De 3 a 7 anos",p:3},
+    {t:"Mais de 7 anos — visão de longo prazo",p:4},
+  ]},
+  {id:3,cat:"Tolerância",ic:"📉",q:"Sua carteira caiu 15% em um mês. O que você faria?",ops:[
+    {t:"Venderia tudo para evitar perdas maiores",p:1},
+    {t:"Ficaria preocupado e reduziria o risco",p:2},
+    {t:"Manteria a posição e aguardaria a recuperação",p:3},
+    {t:"Aproveitaria para comprar mais",p:4},
+  ]},
+  {id:4,cat:"Experiência",ic:"📚",q:"Como descreve seu conhecimento sobre investimentos?",ops:[
+    {t:"Iniciante — conheço apenas poupança e CDB",p:1},
+    {t:"Básico — já invisto em Tesouro Direto e fundos",p:2},
+    {t:"Intermediário — tenho ações, FIIs e renda variável",p:3},
+    {t:"Avançado — opero ETFs, derivativos, cripto",p:4},
+  ]},
+  {id:5,cat:"Renda",ic:"💰",q:"Qual percentual da sua renda mensal você consegue poupar?",ops:[
+    {t:"Menos de 10%",p:1},{t:"Entre 10% e 20%",p:2},
+    {t:"Entre 20% e 35%",p:3},{t:"Mais de 35%",p:4},
+  ]},
+  {id:6,cat:"Reserva",ic:"🏦",q:"Você possui reserva de emergência equivalente a 6+ meses?",ops:[
+    {t:"Não possuo reserva de emergência",p:1},
+    {t:"Tenho reserva parcial (2 a 4 meses)",p:2},
+    {t:"Sim, entre 6 e 12 meses",p:3},
+    {t:"Sim, mais de 12 meses em liquidez",p:4},
+  ]},
+  {id:7,cat:"Diversificação",ic:"🌍",q:"Como se sente em relação a investir em ativos internacionais?",ops:[
+    {t:"Prefiro ficar 100% em ativos brasileiros",p:1},
+    {t:"Aceitaria uma pequena exposição de até 10%",p:2},
+    {t:"Gostaria de ter 20%–30% em ativos globais",p:3},
+    {t:"Busco diversificação global ampla, acima de 30%",p:4},
+  ]},
+  {id:8,cat:"Patrimônio",ic:"📊",q:"Qual é sua faixa de patrimônio financeiro atual?",ops:[
+    {t:"Estou começando — menos de R$ 20 mil",p:1},
+    {t:"Entre R$ 20 mil e R$ 150 mil",p:2},
+    {t:"Entre R$ 150 mil e R$ 500 mil",p:3},
+    {t:"Acima de R$ 500 mil",p:4},
+  ]},
+  {id:9,cat:"Cenário de Crise",ic:"🌩️",q:"Em uma crise grave (como 2008 ou 2020), qual sua postura?",ops:[
+    {t:"Precisaria do dinheiro e não poderia esperar",p:1},
+    {t:"Sofreria, mas manteria os investimentos",p:2},
+    {t:"Manteria a calma e seguiria a estratégia",p:3},
+    {t:"Vejo crises como oportunidades e aumentaria aportes",p:4},
+  ]},
+  {id:10,cat:"Retorno vs Risco",ic:"⚡",q:"Qual cenário você prefere para um prazo de 5 anos?",ops:[
+    {t:"Ganhar 8% a.a. com certeza, sem oscilação",p:1},
+    {t:"Ganhar 11% a.a. com oscilações de até ±5%",p:2},
+    {t:"Ganhar 14% a.a. com oscilações de até ±15%",p:3},
+    {t:"Ganhar 18%+ a.a. aceitando oscilações de ±30%",p:4},
+  ]},
+];
+
+/* ── CARTEIRAS ── */
+const CART = {
+  conservadora:{
+    nome:"Conservadora",cor:"#3B82F6",corL:"#EFF6FF",ic:"🛡️",vol:"Baixa",risco:2,
+    ret:11.2,volAA:3.5,sharpe:0.9,dd:-4.2,
+    desc:"Preservação de capital com rentabilidade acima da inflação. Ideal para horizontes de até 3 anos ou perfil avesso a risco.",
+    dist:[
+      {cl:"Pós-fixados (Tesouro Selic / CDBs)",p:40,cor:"#3B82F6",d:"Tesouro Selic, CDBs 100%+ CDI, LCI/LCA"},
+      {cl:"IPCA+ (Inflação)",p:25,cor:"#6366F1",d:"Tesouro IPCA+, Debêntures Incentivadas"},
+      {cl:"Prefixado",p:15,cor:"#8B5CF6",d:"Tesouro Prefixado, CDB Prefixado"},
+      {cl:"Multimercado Baixo Risco",p:10,cor:"#A78BFA",d:"Fundos macro conservadores"},
+      {cl:"Renda Fixa Internacional (USD)",p:7,cor:"#C4B5FD",d:"BDRs de ETFs de bonds"},
+      {cl:"Ouro / Proteção",p:3,cor:"#DDD6FE",d:"ETF de ouro (GOLD11)"},
+    ],
+    alerts:["Retorno real pode ser corroído pela inflação acima do esperado","Marcação a mercado pode gerar volatilidade pontual nos títulos prefixados"],
+  },
+  moderada:{
+    nome:"Moderada",cor:"#10B981",corL:"#ECFDF5",ic:"⚖️",vol:"Média",risco:3,
+    ret:13.8,volAA:8.2,sharpe:1.1,dd:-12.5,
+    desc:"Equilíbrio entre crescimento e segurança. Combina renda fixa sólida com exposição moderada à renda variável e ativos internacionais.",
+    dist:[
+      {cl:"Pós-fixados (Tesouro Selic / CDBs)",p:25,cor:"#10B981",d:"Liquidez e estabilidade"},
+      {cl:"IPCA+ (Inflação)",p:20,cor:"#059669",d:"Tesouro IPCA+ 2035, 2045"},
+      {cl:"Prefixado",p:10,cor:"#047857",d:"Aproveitamento de ciclo de juros"},
+      {cl:"Renda Variável BR",p:18,cor:"#065F46",d:"Blue chips (ITUB4, PETR4, VALE3, WEGE3)"},
+      {cl:"ETFs Internacionais (USD)",p:12,cor:"#34D399",d:"S&P500, QQQ, ETFs globais"},
+      {cl:"FIIs",p:8,cor:"#6EE7B7",d:"HGLG11, MXRF11, XPML11"},
+      {cl:"Multimercado",p:5,cor:"#A7F3D0",d:"Fundos macro diversificados"},
+      {cl:"Cripto (BTC/ETH)",p:2,cor:"#D1FAE5",d:"Bitcoin e Ethereum"},
+    ],
+    alerts:["Volatilidade da renda variável pode impactar no curto prazo","Risco cambial nas posições internacionais","Drawdowns de até -12% em cenários de estresse são esperados"],
+  },
+  sofisticada:{
+    nome:"Sofisticada",cor:"#F59E0B",corL:"#FFFBEB",ic:"🚀",vol:"Alta",risco:4,
+    ret:17.5,volAA:16.4,sharpe:1.3,dd:-28.0,
+    desc:"Maximização de retorno no longo prazo com diversificação global real. Para investidores com horizonte 5+ anos e tolerância a oscilações.",
+    dist:[
+      {cl:"Renda Variável BR",p:25,cor:"#F59E0B",d:"Small caps e dividendos"},
+      {cl:"ETFs Internacionais (USD)",p:22,cor:"#D97706",d:"S&P500, Nasdaq, REITs"},
+      {cl:"IPCA+ (Inflação)",p:15,cor:"#B45309",d:"IPCA+ longos para proteção real"},
+      {cl:"FIIs / CRIs / CRAs",p:10,cor:"#92400E",d:"FIIs de tijolo, CRI/CRA"},
+      {cl:"Pós-fixados (Liquidez)",p:10,cor:"#78350F",d:"Reserva de oportunidade"},
+      {cl:"Private Equity / Venture",p:6,cor:"#FCD34D",d:"Fundos de PE/VC"},
+      {cl:"Cripto (BTC/ETH/Altcoins)",p:7,cor:"#FDE68A",d:"BTC 60%, ETH 30%, Altcoins 10%"},
+      {cl:"Ouro / Commodities",p:5,cor:"#FEF3C7",d:"Ouro físico, ETF de commodities"},
+    ],
+    alerts:["Drawdowns superiores a -25% são possíveis em crises","Cripto pode sofrer correções de -50%+","Horizonte mínimo recomendado: 5 a 7 anos","Rebalanceamento semestral essencial"],
+  },
+};
+
+const calcPerfil = r => {
+  const tot = Object.values(r).reduce((a,b)=>a+b,0);
+  const p = tot/(PERGUNTAS.length*4);
+  return p<=0.35?"conservadora":p<=0.65?"moderada":"sofisticada";
+};
+const PLABEL = {conservadora:"Conservador",moderada:"Moderado",sofisticada:"Sofisticado"};
+const PDESC = {
+  conservadora:"Você prioriza segurança e previsibilidade. Prefere menor retorno com maior estabilidade e liquidez.",
+  moderada:"Você busca equilíbrio entre rentabilidade e proteção, aceitando oscilações moderadas.",
+  sofisticada:"Você tem foco no longo prazo, alta tolerância a volatilidade e busca maximizar o retorno.",
+};
+
+/* ── SUBCOMPONENTES ── */
+const Logo = ({w=200}) => (
+  <svg viewBox="0 0 440 92" width={w} xmlns="http://www.w3.org/2000/svg">
+    <text x="0" y="70" fontFamily="-apple-system,sans-serif" fontSize="74" fontWeight="300" fill="white" letterSpacing="-2">haus</text>
+    <line x1="220" y1="8" x2="220" y2="80" stroke="white" strokeWidth="1.5" opacity="0.7"/>
+    <text x="234" y="60" fontFamily="-apple-system,sans-serif" fontSize="54" fontWeight="400" fill="white" letterSpacing="-1">necton</text>
+    <text x="234" y="80" fontFamily="-apple-system,sans-serif" fontSize="14" fontWeight="300" fill="rgba(255,255,255,0.6)" letterSpacing="0.3">Uma empresa BTG Pactual</text>
+  </svg>
+);
+
+const RiscoBar = ({n,cor}) => (
+  <div style={{display:"flex",gap:4,marginTop:4}}>
+    {[1,2,3,4,5].map(i=><div key={i} style={{width:20,height:8,borderRadius:4,background:i<=n?cor:"#E5E7EB"}}/>)}
+  </div>
+);
+
+const Donut = ({data}) => {
+  const sz=160,cx=80,cy=80,r=60,inn=36;
+  let cum=0;
+  const sl=data.map(d=>{const s=cum;cum+=d.p;return{...d,s,e:cum};});
+  const pol=(cx,cy,r,deg)=>{const rad=((deg-90)*Math.PI)/180;return{x:cx+r*Math.cos(rad),y:cy+r*Math.sin(rad)};};
+  const arc=(s,e,rr)=>{const a=pol(cx,cy,rr,(s/100)*360),b=pol(cx,cy,rr,(e/100)*360);return`M ${a.x} ${a.y} A ${rr} ${rr} 0 ${e-s>50?1:0} 1 ${b.x} ${b.y}`;};
+  return(
+    <svg width={sz} height={sz}>
+      {sl.map((s,i)=>{const ie=pol(cx,cy,inn,(s.e/100)*360),is=pol(cx,cy,inn,(s.s/100)*360);
+        return<path key={i} d={`${arc(s.s,s.e,r)} L ${ie.x} ${ie.y} A ${inn} ${inn} 0 ${s.e-s.s>50?1:0} 0 ${is.x} ${is.y} Z`} fill={s.cor} stroke="white" strokeWidth={1.5}/>;
+      })}
+      <circle cx={cx} cy={cy} r={inn-1} fill="white"/>
+    </svg>
+  );
+};
+
+const ProjChart = ({dados}) => {
+  if(!dados||!dados.length)return null;
+  const w=480,h=200,pl=64,pr=16,pt=16,pb=36;
+  const iw=w-pl-pr,ih=h-pt-pb;
+  const mx=Math.max(...dados.flatMap(d=>[d.c,d.m,d.s]));
+  const sy=v=>ih-(v/mx)*ih,sx=i=>(i/(dados.length-1))*iw;
+  const ln=k=>dados.map((d,i)=>`${i===0?"M":"L"} ${sx(i)} ${sy(d[k])}`).join(" ");
+  return(
+    <svg width="100%" viewBox={`0 0 ${w} ${h}`}>
+      <g transform={`translate(${pl},${pt})`}>
+        {[0,0.25,0.5,0.75,1].map(t=>(
+          <g key={t}>
+            <line x1={0} x2={iw} y1={ih*(1-t)} y2={ih*(1-t)} stroke="#F3F4F6" strokeWidth={1}/>
+            <text x={-8} y={ih*(1-t)+4} textAnchor="end" fontSize={10} fill="#9CA3AF">{fmtBRL(mx*t)}</text>
+          </g>
+        ))}
+        {dados.map((d,i)=>i%Math.max(1,Math.floor(dados.length/5))===0?
+          <text key={i} x={sx(i)} y={ih+18} textAnchor="middle" fontSize={10} fill="#9CA3AF">Ano {d.a}</text>:null)}
+        <path d={ln("c")} fill="none" stroke="#3B82F6" strokeWidth={2}/>
+        <path d={ln("m")} fill="none" stroke="#10B981" strokeWidth={2}/>
+        <path d={ln("s")} fill="none" stroke="#F59E0B" strokeWidth={2}/>
+      </g>
+    </svg>
+  );
+};
+
+const Slider = ({label,value,onChange,min,max,step,pre="",suf="",fmt}) => (
+  <div style={{marginBottom:20}}>
+    <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}>
+      <span style={{fontSize:13,color:"#6B7280",fontWeight:500}}>{label}</span>
+      <span style={{fontSize:15,fontWeight:700,color:"#111827"}}>{pre}{fmt?fmt(value):value}{suf}</span>
+    </div>
+    <input type="range" min={min} max={max} step={step} value={value} onChange={e=>onChange(Number(e.target.value))} style={{width:"100%"}}/>
+    <div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:"#9CA3AF",marginTop:2}}>
+      <span>{pre}{min}{suf}</span><span>{pre}{max}{suf}</span>
+    </div>
+  </div>
+);
+
+const BtnBack = ({onClick,label="← Voltar"}) => (
+  <button onClick={onClick} style={{background:"none",border:"1px solid #E5E7EB",borderRadius:8,color:"#6B7280",fontSize:13,cursor:"pointer",padding:"8px 16px",marginBottom:16}}>
+    {label}
+  </button>
+);
+
+/* ── APP ── */
+function App() {
+  const [fase,setFase] = useState("welcome");
+  const [nome,setNome] = useState("");
+  const [qi,setQi] = useState(0);
+  const [resp,setResp] = useState({});
+  const [perfil,setPerfil] = useState(null);
+  const [aporte,setAporte] = useState(2000);
+  const [taxa,setTaxa] = useState(12);
+  const [tempo,setTempo] = useState(10);
+  const [cartOpen,setCartOpen] = useState(null);
+  const [proj,setProj] = useState([]);
+  const [idadeAt,setIdadeAt] = useState(35);
+  const [idadeAp,setIdadeAp] = useState(60);
+  const [rendaDes,setRendaDes] = useState(10000);
+  const [patriAt,setPatriAt] = useState(50000);
+  const [ondeInv,setOndeInv] = useState("poupanca");
+  const [valAt,setValAt] = useState(100000);
+  const [aporteM2,setAporteM2] = useState(2000);
+
+  useEffect(()=>{
+    const arr=[];
+    for(let y=1;y<=tempo;y++){
+      const fv=rate=>{const rm=Math.pow(1+rate/100,1/12)-1;const n=y*12;return aporte*((Math.pow(1+rm,n)-1)/rm)*(1+rm);};
+      arr.push({a:y,c:fv(taxa*0.85),m:fv(taxa),s:fv(taxa*1.25)});
+    }
+    setProj(arr);
+  },[aporte,taxa,tempo]);
+
+  const responder=p=>{
+    const nr={...resp,[qi]:p};
+    setResp(nr);
+    if(qi<PERGUNTAS.length-1){setQi(qi+1);}
+    else{const pf=calcPerfil(nr);setPerfil(pf);setFase("resultado");setCartOpen(pf);}
+  };
+
+  const last=proj[proj.length-1];
+  const totInv=aporte*tempo*12;
+  const c=perfil?CART[perfil]:null;
+
+  const anosAp=Math.max(1,idadeAp-idadeAt);
+  const txAp=c?c.ret:12;
+  const patriNec=rendaDes*12/0.04;
+  const rmAp=Math.pow(1+txAp/100,1/12)-1;
+  const nAp=anosAp*12;
+  const patriProj=patriAt*Math.pow(1+txAp/100,anosAp)+aporte*((Math.pow(1+rmAp,nAp)-1)/rmAp)*(1+rmAp);
+  const sufic=patriProj>=patriNec;
+  const gap=patriNec-patriProj;
+  const aporteNec=gap>0?gap/(((Math.pow(1+rmAp,nAp)-1)/rmAp)*(1+rmAp)):0;
+
+  const txMap={poupanca:6.17,cdb_baixo:9.0,tesouro_selic:10.5,cdb_medio:11.0};
+  const nmMap={poupanca:"Poupança",cdb_baixo:"CDB 100% CDI",tesouro_selic:"Tesouro Selic",cdb_medio:"CDB 110% CDI"};
+  const txAt=txMap[ondeInv];
+  const txId=c?c.ret:13.8;
+  const perdaMes=valAt*(Math.pow(1+txId/100,1/12)-Math.pow(1+txAt/100,1/12));
+  const perdaAno=valAt*(Math.pow(1+txId/100,1)-Math.pow(1+txAt/100,1));
+  const perda10=valAt*Math.pow(1+txId/100,10)-valAt*Math.pow(1+txAt/100,10);
+
+  const gerarRelatorio=()=>{
+    if(!c)return;
+    const pct=Math.round((Object.values(resp).reduce((a,b)=>a+b,0)/(PERGUNTAS.length*4))*100);
+    const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Relatório ${nome} — haus | necton</title>
+<style>*{box-sizing:border-box;margin:0;padding:0;}body{font-family:Arial,sans-serif;color:#111;max-width:860px;margin:0 auto;}
+.hd{background:linear-gradient(135deg,#1e1b4b,#4338ca);color:white;padding:40px;text-align:center;}
+.logo{font-size:28px;font-weight:300;letter-spacing:-1px;}.sub{font-size:12px;opacity:.65;margin-top:4px;}
+.sec{padding:28px 40px;border-bottom:1px solid #E5E7EB;}
+.badge{display:inline-block;background:${c.cor};color:white;padding:6px 20px;border-radius:99px;font-size:14px;font-weight:700;margin:12px 0;}
+h2{color:#1e1b4b;font-size:16px;margin-bottom:14px;padding-bottom:6px;border-bottom:2px solid ${c.cor}44;}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin:12px 0;}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:12px 0;}
+.card{background:#F9FAFB;border-radius:8px;padding:14px;text-align:center;border:1px solid #E5E7EB;}
+.cl{font-size:10px;color:#9CA3AF;margin-bottom:5px;text-transform:uppercase;}
+.cv{font-size:18px;font-weight:800;color:${c.cor};}
+.ar{display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid #F3F4F6;font-size:13px;}
+.bb{background:#F3F4F6;border-radius:4px;height:6px;flex:1;margin:0 12px;}
+.bf{height:100%;border-radius:4px;background:${c.cor};}
+.alerta{background:#FEF2F2;border:1px solid #FCA5A5;border-radius:8px;padding:14px;margin-top:14px;font-size:12px;color:#7F1D1D;line-height:1.6;}
+.ok{background:#ECFDF5;border:1px solid #6EE7B7;border-radius:8px;padding:14px;margin-top:14px;color:#065F46;font-size:13px;}
+.warn{background:#FFFBEB;border:1px solid #FDE68A;border-radius:8px;padding:14px;margin-top:14px;color:#92400E;font-size:13px;}
+.sb{background:#E5E7EB;border-radius:99px;height:10px;margin:8px 0 4px;}
+.sf{background:${c.cor};height:100%;border-radius:99px;width:${pct}%;}
+.pr{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #F3F4F6;font-size:13px;}
+.ft{background:#F1F5F9;padding:20px 40px;font-size:10px;color:#9CA3AF;text-align:center;line-height:1.6;}
+.pbtn{position:fixed;bottom:24px;right:24px;background:linear-gradient(135deg,#1e1b4b,#4338ca);color:white;border:none;border-radius:12px;padding:14px 24px;font-size:14px;font-weight:700;cursor:pointer;box-shadow:0 4px 20px rgba(0,0,0,.2);}
+@media print{.pbtn{display:none;}}
+</style></head><body>
+<div class="hd"><div class="logo">haus &nbsp;|&nbsp; necton</div><div class="sub">Uma empresa BTG Pactual</div>
+<h1 style="font-size:24px;margin:20px 0 6px;font-weight:800;">Relatório de Perfil de Investidor</h1>
+<p style="opacity:.8;font-size:13px;">Elaborado para: <strong>${nome}</strong> &nbsp;•&nbsp; ${new Date().toLocaleDateString("pt-BR")}</p></div>
+
+<div class="sec"><h2>1. Perfil Identificado</h2>
+<div class="badge">${c.ic} Investidor ${PLABEL[perfil]}</div>
+<p style="font-size:13px;color:#374151;line-height:1.7;margin-top:8px;">${PDESC[perfil]}</p>
+<p style="font-size:12px;color:#6B7280;margin-top:10px;">Score de tolerância ao risco: <strong>${pct}%</strong></p>
+<div class="sb"><div class="sf"></div></div></div>
+
+<div class="sec"><h2>2. Carteira Recomendada — ${c.nome} ${c.ic}</h2>
+<p style="font-size:13px;color:#374151;line-height:1.6;margin-bottom:16px;">${c.desc}</p>
+<div class="g3">
+<div class="card"><div class="cl">Retorno histórico</div><div class="cv">+${c.ret}% a.a.</div></div>
+<div class="card"><div class="cl">Volatilidade a.a.</div><div class="cv">±${c.volAA}%</div></div>
+<div class="card"><div class="cl">Sharpe Ratio</div><div class="cv">${c.sharpe.toFixed(1)}</div></div></div>
+<div style="margin-top:20px;">${c.dist.map(d=>`<div class="ar"><span style="min-width:210px;font-size:12px;">${d.cl}</span><div class="bb"><div class="bf" style="width:${d.p}%"></div></div><strong style="min-width:36px;text-align:right;">${d.p}%</strong></div>`).join("")}</div>
+<div class="alerta"><strong>⚠️ Riscos:</strong><br/>${c.alerts.map(a=>`• ${a}`).join("<br/>")}</div></div>
+
+<div class="sec"><h2>3. Projeção de Patrimônio</h2>
+<p style="font-size:12px;color:#6B7280;margin-bottom:14px;">Aporte: <strong>${fmtBRL(aporte)}/mês</strong> &nbsp;•&nbsp; Taxa: <strong>${taxa}% a.a.</strong> &nbsp;•&nbsp; Período: <strong>${tempo} anos</strong></p>
+<div class="g3">
+<div class="card"><div class="cl">Total investido</div><div class="cv" style="color:#6B7280;font-size:15px;">${fmtBRL(totInv)}</div></div>
+<div class="card"><div class="cl">Rendimento estimado</div><div class="cv" style="color:#10B981;font-size:15px;">${last?fmtBRL(last.m-totInv):"—"}</div></div>
+<div class="card"><div class="cl">Patrimônio final</div><div class="cv" style="font-size:15px;">${last?fmtBRL(last.m):"—"}</div></div></div>
+${proj.map(p=>`<div class="pr"><span>Ano ${p.a} (${new Date().getFullYear()+p.a})</span><span style="font-weight:700;color:${c.cor};">${fmtBRL(p.m)}</span></div>`).join("")}</div>
+
+<div class="sec"><h2>4. Simulação de Aposentadoria</h2>
+<p style="font-size:12px;color:#6B7280;margin-bottom:14px;">Idade atual: <strong>${idadeAt} anos</strong> &nbsp;•&nbsp; Aposentadoria: <strong>${idadeAp} anos</strong> &nbsp;•&nbsp; Renda desejada: <strong>${fmtBRL(rendaDes)}/mês</strong></p>
+<div class="g2">
+<div class="card"><div class="cl">Patrimônio necessário (Regra 4%)</div><div class="cv" style="color:#EF4444;font-size:15px;">${fmtBRL(patriNec)}</div></div>
+<div class="card"><div class="cl">Patrimônio projetado em ${anosAp} anos</div><div class="cv" style="color:${sufic?"#10B981":"#F59E0B"};font-size:15px;">${fmtBRL(patriProj)}</div></div></div>
+<div class="${sufic?"ok":"warn"}"><strong>${sufic?"✅ Plano no caminho certo!":"⚠️ Ajuste necessário"}</strong><br/>
+${sufic?`Com os aportes atuais e a Carteira ${c.nome}, você deve atingir o objetivo de aposentadoria.`:`Faltam <strong>${fmtBRL(gap)}</strong>. Sugestão: aumentar aporte para <strong>${fmtBRL(aporte+aporteNec)}</strong> (+${fmtBRL(aporteNec)}/mês).`}
+<br/><span style="font-size:11px;opacity:.7;display:block;margin-top:6px;">* Regra dos 4% — referência internacional para planejamento de independência financeira.</span></div></div>
+
+<div class="ft"><strong>haus | necton — Uma empresa BTG Pactual</strong><br/>
+Este relatório tem caráter exclusivamente educacional e não constitui recomendação de investimento.<br/>
+Rentabilidades passadas não garantem resultados futuros. Consulte um profissional certificado (CFP® / CNPI).<br/>
+Dados históricos: mercado brasileiro 2004–2024. Gerado em ${new Date().toLocaleDateString("pt-BR")}.</div>
+<button class="pbtn" onclick="window.print()">🖨️ Imprimir / Salvar PDF</button>
+</body></html>`;
+    const w=window.open("","_blank");
+    if(w){w.document.write(html);w.document.close();}
+    else alert("Permita pop-ups no navegador para abrir o relatório.");
+  };
+
+  /* ── WELCOME ── */
+  if(fase==="welcome") return(
+    <div style={{fontFamily:"inherit",background:"linear-gradient(160deg,#0f0c29,#302b63,#24243e)",minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:24}}>
+      <div style={{maxWidth:480,width:"100%",textAlign:"center"}}>
+        <div style={{display:"flex",justifyContent:"center",marginBottom:28}}><Logo w={220}/></div>
+        <h1 style={{fontSize:28,fontWeight:900,color:"white",margin:"0 0 10px",letterSpacing:-1}}>Descubra seu Perfil de Investidor</h1>
+        <p style={{fontSize:14,color:"rgba(255,255,255,0.65)",lineHeight:1.7,marginBottom:28}}>
+          Responda 10 perguntas e receba análise personalizada com carteira ideal, simulação de aposentadoria e relatório completo.
+        </p>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:32}}>
+          {[["⏱️","5 minutos","para concluir"],["🔒","100% seguro","dados privados"],["📊","Análise real","baseada em dados"]].map(([ic,t,s])=>(
+            <div key={t} style={{background:"rgba(255,255,255,0.07)",borderRadius:12,padding:"14px 10px",border:"1px solid rgba(255,255,255,0.1)"}}>
+              <div style={{fontSize:22,marginBottom:4}}>{ic}</div>
+              <div style={{fontSize:13,color:"white",fontWeight:700}}>{t}</div>
+              <div style={{fontSize:11,color:"rgba(255,255,255,0.5)"}}>{s}</div>
+            </div>
+          ))}
+        </div>
+        <div style={{background:"rgba(255,255,255,0.05)",borderRadius:14,padding:"20px 24px",marginBottom:24,textAlign:"left",border:"1px solid rgba(255,255,255,0.1)"}}>
+          <label style={{fontSize:13,color:"rgba(255,255,255,0.7)",display:"block",marginBottom:8}}>Como posso te chamar?</label>
+          <input value={nome} onChange={e=>setNome(e.target.value)} placeholder="Seu nome ou primeiro nome"
+            onKeyDown={e=>e.key==="Enter"&&nome.trim()&&setFase("quiz")}
+            style={{width:"100%",background:"rgba(255,255,255,0.1)",border:"1px solid rgba(255,255,255,0.2)",borderRadius:8,padding:"12px 14px",color:"white",fontSize:15,outline:"none",boxSizing:"border-box"}}/>
+        </div>
+        <button onClick={()=>nome.trim()&&setFase("quiz")}
+          style={{background:nome.trim()?"linear-gradient(90deg,#6366F1,#8B5CF6)":"rgba(255,255,255,0.1)",color:"white",border:"none",borderRadius:12,padding:"16px 40px",fontSize:16,fontWeight:700,cursor:nome.trim()?"pointer":"not-allowed",width:"100%"}}>
+          {nome.trim()?`Começar análise →`:"Digite seu nome para começar"}
+        </button>
+      </div>
+    </div>
+  );
+
+  /* ── QUIZ ── */
+  if(fase==="quiz"){
+    const q=PERGUNTAS[qi];
+    return(
+      <div style={{fontFamily:"inherit",background:"#F9FAFB",minHeight:"100vh",display:"flex",flexDirection:"column"}}>
+        <div style={{background:"linear-gradient(135deg,#1e1b4b,#4338ca)",padding:"20px 24px"}}>
+          <div style={{maxWidth:560,margin:"0 auto"}}>
+            <div style={{display:"flex",justifyContent:"center",marginBottom:12}}><Logo w={160}/></div>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+              <span style={{fontSize:13,color:"rgba(255,255,255,0.7)"}}>Olá, {nome} 👋</span>
+              <span style={{fontSize:13,color:"rgba(255,255,255,0.7)"}}>{qi+1} de {PERGUNTAS.length}</span>
+            </div>
+            <div style={{background:"rgba(255,255,255,0.2)",borderRadius:99,height:6,overflow:"hidden"}}>
+              <div style={{height:"100%",borderRadius:99,background:"white",width:`${((qi+1)/PERGUNTAS.length)*100}%`,transition:"width 0.4s ease"}}/>
+            </div>
+          </div>
+        </div>
+        <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",padding:"32px 20px"}}>
+          <div style={{maxWidth:560,width:"100%"}}>
+            <div style={{display:"inline-flex",alignItems:"center",gap:6,background:"#EEF2FF",color:"#4338CA",borderRadius:99,padding:"4px 12px",fontSize:12,fontWeight:600,marginBottom:16}}>
+              {q.ic} {q.cat}
+            </div>
+            <h2 style={{fontSize:22,fontWeight:800,color:"#111827",lineHeight:1.35,margin:"0 0 28px"}}>{q.q}</h2>
+            <div style={{display:"flex",flexDirection:"column",gap:12}}>
+              {q.ops.map((op,i)=>(
+                <button key={i} onClick={()=>responder(op.p)}
+                  style={{background:"white",border:"2px solid #E5E7EB",borderRadius:12,padding:"16px 20px",textAlign:"left",cursor:"pointer",fontSize:14,color:"#374151",fontWeight:500,lineHeight:1.5,display:"flex",alignItems:"center",gap:14}}
+                  onMouseEnter={e=>{e.currentTarget.style.borderColor="#6366F1";e.currentTarget.style.background="#EEF2FF";e.currentTarget.style.color="#4338CA";}}
+                  onMouseLeave={e=>{e.currentTarget.style.borderColor="#E5E7EB";e.currentTarget.style.background="white";e.currentTarget.style.color="#374151";}}>
+                  <span style={{width:28,height:28,borderRadius:"50%",background:"#F3F4F6",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontSize:12,fontWeight:700,color:"#9CA3AF"}}>
+                    {String.fromCharCode(65+i)}
+                  </span>{op.t}
+                </button>
+              ))}
+            </div>
+            <div style={{display:"flex",justifyContent:"space-between",marginTop:20}}>
+              <button onClick={()=>{if(qi===0){setFase("welcome");setResp({});setQi(0);}else{setQi(qi-1);const r={...resp};delete r[qi];setResp(r);}}}
+                style={{background:"none",border:"1px solid #E5E7EB",borderRadius:8,color:"#6B7280",fontSize:13,cursor:"pointer",padding:"8px 16px"}}>
+                ← {qi===0?"Início":"Anterior"}
+              </button>
+              <span style={{fontSize:12,color:"#9CA3AF",alignSelf:"center"}}>Pergunta {qi+1} de {PERGUNTAS.length}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  /* ── RESULTADO ── */
+  if(fase==="resultado"&&c){
+    const pct=Math.round((Object.values(resp).reduce((a,b)=>a+b,0)/(PERGUNTAS.length*4))*100);
+    return(
+      <div style={{fontFamily:"inherit",background:"#F9FAFB",minHeight:"100vh",paddingBottom:60}}>
+        <div style={{background:`linear-gradient(135deg,${c.cor}dd,${c.cor})`,padding:"40px 24px 48px",color:"white",textAlign:"center"}}>
+          <div style={{fontSize:52}}>{c.ic}</div>
+          <div style={{fontSize:12,letterSpacing:3,opacity:0.8,marginTop:8,textTransform:"uppercase"}}>Seu perfil</div>
+          <h1 style={{fontSize:32,fontWeight:900,margin:"4px 0 8px"}}>Investidor {PLABEL[perfil]}</h1>
+          <p style={{fontSize:14,opacity:0.85,maxWidth:400,margin:"0 auto",lineHeight:1.6}}>{PDESC[perfil]}</p>
+          <div style={{background:"rgba(255,255,255,0.15)",borderRadius:99,height:8,maxWidth:280,margin:"20px auto 0",overflow:"hidden"}}>
+            <div style={{height:"100%",borderRadius:99,background:"white",width:`${pct}%`}}/>
+          </div>
+          <div style={{fontSize:12,opacity:0.8,marginTop:6}}>Score de tolerância ao risco: {pct}%</div>
+        </div>
+        <div style={{maxWidth:640,margin:"0 auto",padding:"0 16px"}}>
+          <div style={{marginTop:16}}>
+            <BtnBack onClick={()=>{setFase("quiz");setQi(PERGUNTAS.length-1);}} label="← Refazer questionário"/>
+          </div>
+          <div style={{background:"white",borderRadius:16,padding:24,boxShadow:"0 8px 32px rgba(0,0,0,0.1)",border:`2px solid ${c.cor}33`}}>
+            <div style={{fontSize:15,fontWeight:700,color:"#111827",marginBottom:16}}>📋 Análise por dimensão</div>
+            {PERGUNTAS.map((p,i)=>(
+              <div key={p.cat} style={{marginBottom:10}}>
+                <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
+                  <span style={{fontSize:13,color:"#374151"}}>{p.ic} {p.cat}</span>
+                  <span style={{fontSize:13,fontWeight:700,color:c.cor}}>
+                    {resp[i]===1?"Conservador":resp[i]===2?"Moderado-baixo":resp[i]===3?"Moderado-alto":"Arrojado"}
+                  </span>
+                </div>
+                <div style={{background:"#F3F4F6",borderRadius:99,height:6}}>
+                  <div style={{background:c.cor,height:"100%",borderRadius:99,width:`${((resp[i]||0)/4)*100}%`}}/>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div style={{background:c.corL,borderRadius:16,padding:24,marginTop:16,border:`2px solid ${c.cor}55`}}>
+            <div style={{fontSize:13,color:c.cor,fontWeight:700,marginBottom:4}}>✅ Carteira recomendada para você</div>
+            <div style={{fontSize:20,fontWeight:800,color:"#111827",marginBottom:8}}>Carteira {c.nome} {c.ic}</div>
+            <p style={{fontSize:13,color:"#374151",lineHeight:1.6,marginBottom:16}}>{c.desc}</p>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:16}}>
+              {[{l:"Retorno histórico",v:`+${c.ret}% a.a.`},{l:"Volatilidade",v:`±${c.volAA}%`},{l:"Sharpe Ratio",v:c.sharpe.toFixed(1)}].map((m,i)=>(
+                <div key={i} style={{background:"white",borderRadius:8,padding:"10px 12px",textAlign:"center"}}>
+                  <div style={{fontSize:11,color:"#9CA3AF",marginBottom:3}}>{m.l}</div>
+                  <div style={{fontSize:15,fontWeight:800,color:c.cor}}>{m.v}</div>
+                </div>
+              ))}
+            </div>
+            <div style={{display:"flex",gap:16,alignItems:"flex-start",flexWrap:"wrap"}}>
+              <Donut data={c.dist}/>
+              <div style={{flex:1,minWidth:200}}>
+                {c.dist.slice(0,5).map(d=>(
+                  <div key={d.cl} style={{marginBottom:7}}>
+                    <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:"#374151",marginBottom:2}}>
+                      <span style={{display:"flex",alignItems:"center",gap:5}}>
+                        <span style={{width:7,height:7,borderRadius:"50%",background:d.cor,display:"inline-block"}}/>{d.cl}
+                      </span><b>{d.p}%</b>
+                    </div>
+                    <div style={{background:"#E5E7EB",borderRadius:4,height:4}}>
+                      <div style={{background:d.cor,height:"100%",borderRadius:4,width:`${d.p}%`}}/>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginTop:16}}>
+            <button onClick={()=>setFase("simulador")}
+              style={{background:`linear-gradient(90deg,${c.cor},${c.cor}bb)`,color:"white",border:"none",borderRadius:12,padding:"16px",fontSize:15,fontWeight:700,cursor:"pointer"}}>
+              📊 Simular patrimônio →
+            </button>
+            <button onClick={gerarRelatorio}
+              style={{background:"linear-gradient(90deg,#1e1b4b,#4338ca)",color:"white",border:"none",borderRadius:12,padding:"16px",fontSize:15,fontWeight:700,cursor:"pointer"}}>
+              📄 Baixar relatório
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  /* ── SIMULADOR ── */
+  if(fase==="simulador") return(
+    <div style={{fontFamily:"inherit",background:"#F9FAFB",minHeight:"100vh",paddingBottom:60}}>
+      <div style={{background:"linear-gradient(135deg,#1e1b4b,#312e81,#4338ca)",padding:"28px 24px",color:"white",textAlign:"center"}}>
+        <div style={{display:"flex",justifyContent:"center",marginBottom:14}}><Logo w={160}/></div>
+        {c&&<div style={{display:"inline-flex",alignItems:"center",gap:6,background:`${c.cor}44`,color:"white",borderRadius:99,padding:"4px 14px",fontSize:12,fontWeight:600,marginBottom:8,border:`1px solid ${c.cor}88`}}>
+          {c.ic} Perfil {PLABEL[perfil]} identificado
+        </div>}
+        <h1 style={{fontSize:22,fontWeight:800,margin:"0 0 6px"}}>Simulador de Patrimônio</h1>
+        <div style={{display:"flex",justifyContent:"center",gap:10,marginTop:12,flexWrap:"wrap"}}>
+          <button onClick={()=>setFase("resultado")} style={{background:"rgba(255,255,255,0.1)",color:"rgba(255,255,255,0.8)",border:"1px solid rgba(255,255,255,0.2)",borderRadius:8,padding:"6px 14px",fontSize:12,cursor:"pointer"}}>← Ver perfil</button>
+          <button onClick={()=>{setFase("quiz");setQi(0);setResp({});}} style={{background:"rgba(255,255,255,0.1)",color:"rgba(255,255,255,0.8)",border:"1px solid rgba(255,255,255,0.2)",borderRadius:8,padding:"6px 14px",fontSize:12,cursor:"pointer"}}>↺ Refazer quiz</button>
+          <button onClick={gerarRelatorio} style={{background:"rgba(255,255,255,0.15)",color:"white",border:"1px solid rgba(255,255,255,0.3)",borderRadius:8,padding:"6px 14px",fontSize:12,cursor:"pointer",fontWeight:600}}>📄 Relatório</button>
+        </div>
+      </div>
+
+      <div style={{maxWidth:720,margin:"0 auto",padding:"0 16px"}}>
+
+        {/* Simulador */}
+        <div style={{background:"white",borderRadius:16,padding:28,marginTop:16,boxShadow:"0 4px 24px rgba(0,0,0,0.07)",border:"1px solid #E5E7EB"}}>
+          <h2 style={{fontSize:16,fontWeight:700,color:"#111827",margin:"0 0 20px"}}>📐 Configure sua simulação</h2>
+          <Slider label="Aporte mensal" value={aporte} onChange={setAporte} min={500} max={50000} step={500} pre="R$ " fmt={v=>v.toLocaleString("pt-BR")}/>
+          <Slider label="Taxa de retorno esperada (a.a.)" value={taxa} onChange={setTaxa} min={6} max={25} step={0.5} suf="%"/>
+          <Slider label="Tempo de investimento" value={tempo} onChange={setTempo} min={1} max={30} step={1} suf=" anos"/>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12,marginTop:8}}>
+            {[{l:"Total investido",v:fmtBRL(totInv),cor:"#6B7280"},{l:"Rendimento",v:last?fmtBRL(last.m-totInv):"—",cor:"#10B981"},{l:"Patrimônio final",v:last?fmtBRL(last.m):"—",cor:"#6366F1"}].map(cd=>(
+              <div key={cd.l} style={{background:"#F9FAFB",borderRadius:10,padding:"14px 12px",textAlign:"center",border:"1px solid #E5E7EB"}}>
+                <div style={{fontSize:11,color:"#9CA3AF",marginBottom:4}}>{cd.l}</div>
+                <div style={{fontSize:15,fontWeight:800,color:cd.cor}}>{cd.v}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Gráfico */}
+        {proj.length>0&&(
+          <div style={{background:"white",borderRadius:16,padding:24,marginTop:16,boxShadow:"0 4px 24px rgba(0,0,0,0.06)",border:"1px solid #E5E7EB"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+              <h3 style={{fontSize:15,fontWeight:700,margin:0,color:"#111827"}}>📈 Projeção por perfil</h3>
+              <div style={{display:"flex",gap:10}}>
+                {[["#3B82F6","Conservadora"],["#10B981","Moderada"],["#F59E0B","Sofisticada"]].map(([cor,l])=>(
+                  <span key={l} style={{fontSize:11,display:"flex",alignItems:"center",gap:4,color:"#6B7280"}}>
+                    <span style={{width:10,height:3,background:cor,borderRadius:2,display:"inline-block"}}/>{l}
+                  </span>
+                ))}
+              </div>
+            </div>
+            <ProjChart dados={proj}/>
+            {last&&<div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginTop:12}}>
+              {[{l:"🛡️ Conservadora",v:last.c,cor:"#3B82F6"},{l:"⚖️ Moderada",v:last.m,cor:"#10B981"},{l:"🚀 Sofisticada",v:last.s,cor:"#F59E0B"}].map(p=>(
+                <div key={p.l} style={{background:"#F9FAFB",borderRadius:8,padding:"10px 8px",textAlign:"center",borderTop:`3px solid ${p.cor}`}}>
+                  <div style={{fontSize:11,color:"#6B7280",marginBottom:3}}>{p.l}</div>
+                  <div style={{fontSize:14,fontWeight:800,color:p.cor}}>{fmtBRL(p.v)}</div>
+                </div>
+              ))}
+            </div>}
+          </div>
+        )}
+
+        {/* Perdendo hoje */}
+        <div style={{background:"white",borderRadius:16,padding:28,marginTop:16,boxShadow:"0 4px 24px rgba(0,0,0,0.07)",border:"2px solid #FEE2E2"}}>
+          <h2 style={{fontSize:16,fontWeight:700,color:"#111827",margin:"0 0 6px"}}>🔍 Quanto estou perdendo hoje?</h2>
+          <p style={{fontSize:13,color:"#6B7280",marginBottom:20}}>Compare onde seu dinheiro está com onde deveria estar.</p>
+          <div style={{marginBottom:16}}>
+            <label style={{fontSize:13,color:"#6B7280",fontWeight:500,display:"block",marginBottom:8}}>Onde seu dinheiro está hoje?</label>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+              {Object.entries(nmMap).map(([k,v])=>(
+                <button key={k} onClick={()=>setOndeInv(k)}
+                  style={{background:ondeInv===k?"#FEF2F2":"#F9FAFB",border:`2px solid ${ondeInv===k?"#EF4444":"#E5E7EB"}`,borderRadius:10,padding:"12px 14px",textAlign:"left",cursor:"pointer"}}>
+                  <div style={{fontSize:12,fontWeight:700,color:ondeInv===k?"#EF4444":"#374151"}}>{v}</div>
+                  <div style={{fontSize:11,color:"#9CA3AF",marginTop:2}}>{txMap[k]}% a.a.</div>
+                </button>
+              ))}
+            </div>
+          </div>
+          <Slider label="Valor total investido hoje" value={valAt} onChange={setValAt} min={10000} max={2000000} step={10000} pre="R$ " fmt={v=>v.toLocaleString("pt-BR")}/>
+          <div style={{background:"#FEF2F2",borderRadius:12,padding:20,border:"1px solid #FCA5A5"}}>
+            <div style={{fontSize:13,color:"#991B1B",fontWeight:700,marginBottom:14}}>
+              {nmMap[ondeInv]} ({txAt}% a.a.) vs. Carteira {c?.nome||"Ideal"} ({txId.toFixed(1)}% a.a.)
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10}}>
+              {[{l:"Perdendo por mês",v:fmtBRL(perdaMes),cor:"#EF4444"},{l:"Perdendo por ano",v:fmtBRL(perdaAno),cor:"#DC2626"},{l:"Diferença em 10 anos",v:fmtBRL(perda10),cor:"#B91C1C"}].map(m=>(
+                <div key={m.l} style={{background:"white",borderRadius:8,padding:"12px 10px",textAlign:"center"}}>
+                  <div style={{fontSize:10,color:"#9CA3AF",marginBottom:4}}>{m.l}</div>
+                  <div style={{fontSize:14,fontWeight:800,color:m.cor}}>{m.v}</div>
+                </div>
+              ))}
+            </div>
+            <p style={{fontSize:12,color:"#7F1D1D",marginTop:12,marginBottom:0,lineHeight:1.5}}>
+              💡 Ao migrar para a Carteira {c?.nome||"recomendada"}, você acumularia <strong>{fmtBRL(perda10)}</strong> a mais nos próximos 10 anos.
+            </p>
+          </div>
+        </div>
+
+        {/* Aposentadoria */}
+        <div style={{background:"white",borderRadius:16,padding:28,marginTop:16,boxShadow:"0 4px 24px rgba(0,0,0,0.07)",border:`2px solid ${sufic?"#D1FAE5":"#FDE68A"}`}}>
+          <h2 style={{fontSize:16,fontWeight:700,color:"#111827",margin:"0 0 6px"}}>🏖️ Simulador de Aposentadoria</h2>
+          <p style={{fontSize:13,color:"#6B7280",marginBottom:20}}>Descubra se seu plano atual é suficiente para se aposentar com a renda que deseja.</p>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
+            <div>
+              <Slider label="Sua idade atual" value={idadeAt} onChange={setIdadeAt} min={18} max={65} step={1} suf=" anos"/>
+              <Slider label="Idade para aposentar" value={idadeAp} onChange={v=>setIdadeAp(Math.max(idadeAt+5,v)) } min={30} max={75} step={1} suf=" anos"/>
+            </div>
+            <div>
+              <Slider label="Renda mensal desejada" value={rendaDes} onChange={setRendaDes} min={3000} max={100000} step={1000} pre="R$ " fmt={v=>v.toLocaleString("pt-BR")}/>
+              <Slider label="Patrimônio atual" value={patriAt} onChange={setPatriAt} min={0} max={2000000} step={10000} pre="R$ " fmt={v=>v.toLocaleString("pt-BR")}/>
+            </div>
+          </div>
+          <div style={{background:sufic?"#ECFDF5":"#FFFBEB",borderRadius:12,padding:20,border:`1px solid ${sufic?"#6EE7B7":"#FDE68A"}`}}>
+            <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
+              <div style={{fontSize:32}}>{sufic?"✅":"⚠️"}</div>
+              <div>
+                <div style={{fontSize:15,fontWeight:800,color:sufic?"#065F46":"#92400E"}}>{sufic?"Plano no caminho certo!":"Ajuste necessário no plano"}</div>
+                <div style={{fontSize:12,color:sufic?"#047857":"#B45309"}}>
+                  {sufic?`Você está no rumo para aposentar aos ${idadeAp} anos`:`Faltam ${fmtBRL(gap)} para atingir a independência`}
+                </div>
+              </div>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:sufic?0:16}}>
+              {[{l:"Patrimônio necessário (Regra 4%)",v:fmtBRL(patriNec),cor:"#EF4444"},{l:`Projetado em ${anosAp} anos`,v:fmtBRL(patriProj),cor:sufic?"#10B981":"#F59E0B"}].map(m=>(
+                <div key={m.l} style={{background:"white",borderRadius:8,padding:"12px 10px",textAlign:"center"}}>
+                  <div style={{fontSize:10,color:"#9CA3AF",marginBottom:4}}>{m.l}</div>
+                  <div style={{fontSize:14,fontWeight:800,color:m.cor}}>{m.v}</div>
+                </div>
+              ))}
+            </div>
+            {!sufic&&<div style={{background:"white",borderRadius:8,padding:"12px 16px",border:"1px solid #FDE68A",fontSize:12,color:"#92400E"}}>
+              💡 Para atingir sua meta, aumente o aporte para <strong>{fmtBRL(aporte+aporteNec)}</strong> (+{fmtBRL(aporteNec)}/mês) ou estenda o prazo.
+            </div>}
+            <p style={{fontSize:11,color:"#9CA3AF",marginTop:12,marginBottom:0}}>* Regra dos 4% (Safe Withdrawal Rate) — referência internacional para planejamento de aposentadoria.</p>
+          </div>
+        </div>
+
+        {/* Carteiras */}
+        <div style={{marginTop:24}}>
+          <h2 style={{fontSize:18,fontWeight:800,color:"#111827",textAlign:"center",marginBottom:4}}>🏦 Estratégias de Carteira</h2>
+          <p style={{fontSize:13,color:"#6B7280",textAlign:"center",marginBottom:20}}>
+            {perfil?`Com base no seu perfil, a carteira ${CART[perfil].nome} é a mais indicada.`:"Escolha o perfil ideal"}
+          </p>
+          {Object.entries(CART).map(([key,ct])=>(
+            <div key={key} onClick={()=>setCartOpen(cartOpen===key?null:key)}
+              style={{background:cartOpen===key?ct.corL:"white",borderRadius:14,border:`2px solid ${cartOpen===key?ct.cor:key===perfil?ct.cor+"55":"#E5E7EB"}`,marginBottom:12,cursor:"pointer",overflow:"hidden",transition:"all 0.2s"}}>
+              <div style={{padding:"20px 24px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                <div style={{display:"flex",alignItems:"center",gap:14}}>
+                  <div style={{fontSize:28}}>{ct.ic}</div>
+                  <div>
+                    <div style={{display:"flex",alignItems:"center",gap:8}}>
+                      <span style={{fontWeight:800,fontSize:17,color:"#111827"}}>Carteira {ct.nome}</span>
+                      {key===perfil&&<span style={{fontSize:10,background:ct.cor,color:"white",borderRadius:99,padding:"2px 8px",fontWeight:700}}>Recomendada</span>}
+                    </div>
+                    <div style={{fontSize:12,color:"#6B7280",marginTop:2}}>Volatilidade {ct.vol}</div>
+                    <RiscoBar n={ct.risco} cor={ct.cor}/>
+                  </div>
+                </div>
+                <div style={{textAlign:"right"}}>
+                  <div style={{fontSize:22,fontWeight:800,color:ct.cor}}>+{ct.ret}%</div>
+                  <div style={{fontSize:11,color:"#9CA3AF"}}>retorno hist. a.a.</div>
+                  <div style={{fontSize:12,marginTop:4,color:cartOpen===key?ct.cor:"#9CA3AF"}}>{cartOpen===key?"▲ Fechar":"▼ Ver detalhes"}</div>
+                </div>
+              </div>
+              {cartOpen===key&&(
+                <div style={{borderTop:`1px solid ${ct.cor}33`,padding:"20px 24px"}}>
+                  <p style={{fontSize:13,color:"#374151",marginTop:0,marginBottom:20,lineHeight:1.6}}>{ct.desc}</p>
+                  <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:20}}>
+                    {[
+                      {l:<Tip termo="Volatilidade">Volatilidade a.a.</Tip>,v:`±${ct.volAA}%`},
+                      {l:<Tip termo="Sharpe Ratio">Índice Sharpe</Tip>,v:ct.sharpe.toFixed(1)},
+                      {l:<Tip termo="Drawdown">Max. Drawdown</Tip>,v:`${ct.dd}%`},
+                    ].map((m,i)=>(
+                      <div key={i} style={{background:"white",borderRadius:8,padding:"10px 12px",border:"1px solid #E5E7EB"}}>
+                        <div style={{fontSize:11,color:"#9CA3AF",marginBottom:3}}>{m.l}</div>
+                        <div style={{fontSize:16,fontWeight:700,color:ct.cor}}>{m.v}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{display:"flex",gap:20,alignItems:"flex-start",flexWrap:"wrap"}}>
+                    <Donut data={ct.dist}/>
+                    <div style={{flex:1,minWidth:200}}>
+                      <div style={{fontWeight:700,fontSize:13,color:"#111827",marginBottom:8}}>Alocação</div>
+                      {ct.dist.map(d=>(
+                        <div key={d.cl} style={{marginBottom:8}}>
+                          <div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}>
+                            <span style={{fontSize:12,color:"#374151",display:"flex",alignItems:"center",gap:6}}>
+                              <span style={{width:8,height:8,borderRadius:"50%",background:d.cor,display:"inline-block",flexShrink:0}}/>
+                              {d.cl}
+                            </span>
+                            <span style={{fontSize:12,fontWeight:700,color:"#111827"}}>{d.p}%</span>
+                          </div>
+                          <div style={{background:"#F3F4F6",borderRadius:4,height:5}}>
+                            <div style={{background:d.cor,height:"100%",borderRadius:4,width:`${d.p}%`}}/>
+                          </div>
+                          <div style={{fontSize:10,color:"#9CA3AF",marginTop:2}}>{d.d}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div style={{marginTop:16,background:"#FEF2F2",borderRadius:8,padding:"12px 16px",border:"1px solid #FCA5A5"}}>
+                    <div style={{fontSize:12,fontWeight:700,color:"#DC2626",marginBottom:6}}>⚠️ Riscos & Advertências</div>
+                    {ct.alerts.map((a,i)=>(
+                      <div key={i} style={{fontSize:12,color:"#7F1D1D",marginBottom:3,display:"flex",gap:6}}>
+                        <span>•</span><span>{a}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+
+        {/* Glossário */}
+        <div style={{background:"white",borderRadius:16,padding:24,marginTop:16,border:"1px solid #E5E7EB"}}>
+          <h3 style={{fontSize:15,fontWeight:700,color:"#111827",margin:"0 0 4px"}}>📚 Glossário</h3>
+          <p style={{fontSize:12,color:"#9CA3AF",margin:"0 0 16px"}}>Passe o mouse sobre termos sublinhados na plataforma para ver definições. Ou consulte abaixo:</p>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+            {Object.entries(GLOSS).map(([t,d])=>(
+              <div key={t} style={{background:"#F9FAFB",borderRadius:8,padding:12,border:"1px solid #E5E7EB"}}>
+                <div style={{fontSize:12,fontWeight:700,color:"#6366F1",marginBottom:4}}>{t}</div>
+                <div style={{fontSize:11,color:"#6B7280",lineHeight:1.5}}>{d}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* CTA PDF */}
+        <div style={{background:"linear-gradient(135deg,#1e1b4b,#4338ca)",borderRadius:16,padding:28,marginTop:16,textAlign:"center",color:"white"}}>
+          <div style={{fontSize:32,marginBottom:8}}>📄</div>
+          <h3 style={{fontSize:18,fontWeight:800,margin:"0 0 8px"}}>Baixe seu Relatório Completo</h3>
+          <p style={{fontSize:13,opacity:0.8,margin:"0 0 20px",lineHeight:1.6}}>
+            Relatório personalizado com perfil, carteira, simulação de aposentadoria e projeção de patrimônio.
+          </p>
+          <button onClick={gerarRelatorio}
+            style={{background:"white",color:"#1e1b4b",border:"none",borderRadius:12,padding:"14px 32px",fontSize:15,fontWeight:700,cursor:"pointer"}}>
+            📥 Baixar Relatório — {nome}
+          </button>
+        </div>
+
+        <div style={{background:"#F1F5F9",borderRadius:10,padding:"14px 18px",marginTop:16,border:"1px solid #CBD5E1"}}>
+          <div style={{fontSize:11,color:"#64748B",lineHeight:1.6}}>
+            <strong>📋 Aviso Legal:</strong> As informações e projeções têm caráter educacional e não constituem recomendação de investimento. Rentabilidades passadas não garantem resultados futuros. Consulte sempre um profissional certificado (CFP® / CNPI). Dados históricos: mercado brasileiro 2004–2024.
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  return null;
+}
+
+const root = ReactDOM.createRoot(document.getElementById("root"));
+root.render(<App/>);
+</script>
+</body>
+</html>
